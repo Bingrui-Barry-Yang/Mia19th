@@ -11,3 +11,6 @@
 __pycache__/
 *.py[cod]
 
+# 浏览器不直接使用的原始媒体
+Gareth.T-玻璃.mp3
+Photos/*.HEIC

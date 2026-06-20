@@ -24,6 +24,14 @@ ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "咪呀22.txt"
 OUTPUT = ROOT / "index.html"
 ITERATIONS = 310_000
+PHOTO_WEB_DIR = ROOT / "Photos" / "web"
+
+
+def list_album_photos() -> list[str]:
+    return [
+        path.relative_to(ROOT).as_posix()
+        for path in sorted(PHOTO_WEB_DIR.glob("*.webp"), key=lambda item: item.name.casefold())
+    ]
 
 
 def b64(data: bytes) -> str:
@@ -46,8 +54,9 @@ def encrypt_letter(plaintext: str, password: str) -> dict[str, object]:
     }
 
 
-def render_page(payload: dict[str, object]) -> str:
+def render_page(payload: dict[str, object], album_photos: list[str]) -> str:
     payload_json = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+    photos_json = json.dumps(album_photos, ensure_ascii=False, separators=(",", ":"))
     return f'''<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -207,13 +216,21 @@ def render_page(payload: dict[str, object]) -> str:
       animation: breathe 2.5s ease-in-out infinite;
     }}
     .music-toggle {{
-      position: fixed; z-index: 20; top: max(1rem, env(safe-area-inset-top)); right: max(1rem, env(safe-area-inset-right));
+      position: fixed; z-index: 60; top: max(1rem, env(safe-area-inset-top)); right: max(1rem, env(safe-area-inset-right));
       width: 2.8rem; height: 2.8rem; border: 1px solid rgba(82,121,154,.26); border-radius: 50%;
       color: #f8fbfd; background: rgba(82,121,154,.88); cursor: pointer; backdrop-filter: blur(8px);
       box-shadow: 0 .45rem 1.2rem rgba(38,55,68,.18); transition: transform .2s, opacity .2s;
     }}
     .music-toggle:hover {{ transform: translateY(-1px) scale(1.03); }}
     .music-toggle.needs-tap {{ animation: music-pulse 1.5s ease-in-out infinite; }}
+    .reseal {{
+      position: fixed; z-index: 18; right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom));
+      min-height: 2.75rem; padding: 0 1.15rem; border: 1px solid rgba(82,121,154,.25); border-radius: 999px;
+      color: #f8fbfd; background: rgba(82,121,154,.9); cursor: pointer; letter-spacing: .08em;
+      box-shadow: 0 .55rem 1.4rem rgba(38,55,68,.2); backdrop-filter: blur(8px);
+      transition: transform .2s, opacity .2s;
+    }}
+    .reseal:hover {{ transform: translateY(-1px); }}
     @keyframes music-pulse {{ 50% {{ transform: scale(1.1); box-shadow: 0 0 0 .45rem rgba(82,121,154,.12); }} }}
     @keyframes breathe {{ 50% {{ opacity: .45; transform: translate(-50%, .16rem); }} }}
 
@@ -224,7 +241,16 @@ def render_page(payload: dict[str, object]) -> str:
     .scene.is-opening .paper {{ animation: paper-rise 1.45s .62s var(--ease) forwards; }}
     .scene.is-opening .letter-text {{ opacity: 1; }}
     .scene.is-opening .hint {{ opacity: 0; animation: none; }}
+    .scene.is-closing .envelope-wrap {{ animation: settle-back 1.25s var(--ease) forwards; }}
+    .scene.is-closing .paper {{ animation: paper-rise 1.25s var(--ease) reverse forwards; }}
+    .scene.is-closing .letter-text {{ opacity: 0; transition-delay: 0s; }}
+    .scene.is-closing .flap {{ transform: rotateX(0deg); z-index: 4; transition-delay: .58s; }}
+    .scene.is-closing .seal {{
+      pointer-events: none; opacity: 1; transform: translate(-50%, -50%) rotate(-4deg) scale(1);
+      transition-delay: .82s;
+    }}
     @keyframes settle {{ to {{ transform: translateY(1.2rem); filter: drop-shadow(0 1rem 1.2rem rgba(70,45,38,.13)); }} }}
+    @keyframes settle-back {{ from {{ transform: translateY(1.2rem); }} to {{ transform: translateY(0); }} }}
     @keyframes paper-rise {{
       0% {{ z-index: 2; width: 88%; left: 6%; max-height: 88%; transform: translateY(16%) scale(.96); }}
       46% {{ z-index: 2; width: 88%; left: 6%; max-height: 88%; transform: translateY(-62%) scale(.98); }}
@@ -232,12 +258,87 @@ def render_page(payload: dict[str, object]) -> str:
       100% {{ z-index: 8; left: 50%; width: min(90vw, 46rem); max-height: none; transform: translate(-50%, -2.2rem) scale(1); }}
     }}
 
+    .album-section {{
+      position: relative; min-height: 100svh; display: grid; place-items: center;
+      padding: max(4rem, env(safe-area-inset-top)) 1rem max(5rem, env(safe-area-inset-bottom));
+      border-top: 1px solid rgba(82,121,154,.09);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(82,121,154,.035));
+    }}
+    .album-entry {{ text-align: center; }}
+    .album-book {{
+      position: relative; width: min(72vw, 19rem); aspect-ratio: .78; margin: 0 auto;
+      perspective: 1300px; filter: drop-shadow(0 1.5rem 1.4rem rgba(38,55,68,.2));
+    }}
+    .album-pages, .album-cover {{ position: absolute; inset: 0; border-radius: .55rem 1rem 1rem .55rem; }}
+    .album-pages {{
+      transform: translate(.42rem, .34rem); border: 1px solid #cfd5d8;
+      background: repeating-linear-gradient(90deg, #f7f8f8 0 3px, #e0e4e6 3px 4px);
+      box-shadow: .35rem .45rem 0 #c8ced2;
+    }}
+    .album-cover {{
+      z-index: 2; transform-origin: 3% 50%; transform-style: preserve-3d;
+      border: 1px solid rgba(48,78,104,.35);
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.16), transparent 11%),
+        radial-gradient(circle at 72% 24%, rgba(255,255,255,.16), transparent 11rem),
+        linear-gradient(145deg, #6f91ad, #486c8b);
+      box-shadow: inset .42rem 0 .7rem rgba(22,45,64,.24), inset 0 0 0 .18rem rgba(255,255,255,.08);
+      transition: transform 1.05s var(--ease), opacity .35s .7s;
+    }}
+    .album-cover::before {{
+      content: "Mia22"; position: absolute; left: 50%; top: 24%; transform: translateX(-50%);
+      color: rgba(247,243,226,.78); font: 500 clamp(.8rem, 3vw, 1rem)/1 Georgia, serif;
+      letter-spacing: .26em; white-space: nowrap;
+    }}
+    .album-seal {{ top: 56%; }}
+    .album-book.is-opening .album-cover {{ transform: rotateY(-164deg); opacity: .25; }}
+    .album-book.is-opening .album-seal {{ pointer-events: none; opacity: 0; transform: translate(-68%, -50%) rotate(-16deg) scale(.7); }}
+    .album-caption {{ margin: 1.6rem 0 0; color: var(--muted); font-size: .9rem; letter-spacing: .13em; }}
+
+    .gallery {{
+      position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
+      padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+      background: radial-gradient(circle at 50% 42%, #27343d, #11171c 72%);
+      opacity: 0; visibility: hidden; transition: opacity .55s ease, visibility .55s ease;
+    }}
+    .gallery.is-open {{ opacity: 1; visibility: visible; }}
+    .gallery-shell {{ width: min(92vw, 68rem); display: grid; gap: .8rem; }}
+    .gallery-stage {{
+      position: relative; width: 100%; height: min(76svh, 48rem); overflow: hidden;
+      border-radius: .8rem; background: rgba(5,8,10,.42); box-shadow: 0 2rem 6rem rgba(0,0,0,.38);
+    }}
+    .gallery-slide {{
+      position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
+      opacity: 0; transform: scale(1.025); transition: opacity .82s ease, transform 3.29s linear;
+    }}
+    .gallery-slide.is-active {{ opacity: 1; transform: scale(1); }}
+    .gallery-close {{
+      position: fixed; z-index: 61; top: max(1rem, env(safe-area-inset-top)); left: max(1rem, env(safe-area-inset-left));
+      width: 2.8rem; height: 2.8rem; border: 1px solid rgba(255,255,255,.2); border-radius: 50%;
+      color: #f6f8f9; background: rgba(22,31,38,.72); cursor: pointer; font-size: 1.35rem; backdrop-filter: blur(8px);
+    }}
+    .gallery-nav {{ display: flex; align-items: center; justify-content: center; gap: 1.35rem; }}
+    .gallery-arrow {{
+      width: 3rem; height: 2.3rem; border: 1px solid rgba(255,255,255,.17); border-radius: 999px;
+      color: rgba(246,248,249,.88); background: rgba(70,88,101,.46); cursor: pointer;
+      font: 1.15rem/1 sans-serif; backdrop-filter: blur(8px); transition: background .2s, transform .2s;
+    }}
+    .gallery-arrow:hover {{ background: rgba(82,121,154,.72); transform: translateY(-1px); }}
+    .gallery-count {{
+      color: rgba(245,248,249,.7); font: .8rem/1.4 Georgia, serif; letter-spacing: .18em;
+      min-width: 4.2rem; text-align: center;
+    }}
+    body.gallery-open {{ overflow: hidden; }}
+
     @media (max-width: 520px) {{
       .scene {{ padding-inline: .6rem; }}
       .envelope-wrap {{ width: 91vw; }}
       .paper {{ padding: 1.55rem 1.25rem 2.5rem; }}
       .letter-text {{ line-height: 1.9; }}
       .hint {{ top: calc(100% + 1.2rem); }}
+      .album-book {{ width: min(68vw, 17rem); }}
+      .gallery-shell {{ width: 94vw; }}
+      .gallery-stage {{ height: 70svh; }}
     }}
     @media (max-height: 500px) and (orientation: landscape) {{
       .envelope-wrap {{ width: min(58vw, 28rem); }}
@@ -263,7 +364,7 @@ def render_page(payload: dict[str, object]) -> str:
         <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required autofocus>
         <button class="peek" id="peek" type="button" aria-label="显示密码" aria-pressed="false">◉</button>
       </div>
-      <button class="unlock" id="unlock" type="submit">打开来信</button>
+      <button class="unlock" id="unlock" type="submit">打开</button>
       <p class="status" id="status" role="alert" aria-live="polite"></p>
     </form>
   </section>
@@ -285,14 +386,46 @@ def render_page(payload: dict[str, object]) -> str:
         <p class="hint" id="hint">轻触蝴蝶火漆印</p>
       </div>
     </section>
+    <button class="reseal" id="reseal" type="button" hidden>收回信封</button>
+    <section class="album-section" id="album-section" aria-label="照片相册">
+      <div class="album-entry">
+        <div class="album-book" id="album-book">
+          <div class="album-pages" aria-hidden="true"></div>
+          <div class="album-cover">
+            <button class="seal album-seal" id="album-seal" type="button" aria-label="点击蝴蝶火漆印章打开相册">
+              <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                <path d="M50 45C36 21 13 14 13 32c0 13 16 22 33 20M50 45C64 21 87 14 87 32c0 13-16 22-33 20M48 51C31 49 18 58 21 69c4 14 21 5 29-13M52 51c17-2 30 7 27 18-4 14-21 5-29-13M50 42v27M45 72l5-5 5 5"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <p class="album-caption">轻触蝴蝶火漆印打开相册</p>
+      </div>
+    </section>
   </main>
 
   <audio id="bgm" src="keshi-LIMBO.mp3" preload="auto" loop></audio>
+  <audio id="album-bgm" src="Gareth.T-玻璃.web.mp3" preload="auto" loop></audio>
   <button class="music-toggle" id="music-toggle" type="button" aria-label="播放背景音乐" hidden>♪</button>
+  <section class="gallery" id="gallery" aria-label="照片轮播" aria-modal="true" role="dialog">
+    <button class="gallery-close" id="gallery-close" type="button" aria-label="关闭相册">×</button>
+    <div class="gallery-shell">
+      <div class="gallery-stage" id="gallery-stage"></div>
+      <nav class="gallery-nav" aria-label="手动切换照片">
+        <button class="gallery-arrow" id="gallery-prev" type="button" aria-label="上一张">←</button>
+        <div class="gallery-count" id="gallery-count" aria-live="polite"></div>
+        <button class="gallery-arrow" id="gallery-next" type="button" aria-label="下一张">→</button>
+      </nav>
+    </div>
+  </section>
 
   <script>
     'use strict';
     const ENCRYPTED_LETTER = {payload_json};
+    const PHOTO_ITEMS = {photos_json};
+    const BPM = 73;
+    const SLIDE_BEATS = 4;
+    const SLIDE_SECONDS = 60 / BPM * SLIDE_BEATS;
     const $ = (selector) => document.querySelector(selector);
     const auth = $('#auth');
     const authForm = $('#auth-form');
@@ -302,21 +435,44 @@ def render_page(payload: dict[str, object]) -> str:
     const experience = $('#experience');
     const scene = $('#scene');
     const seal = $('#seal');
+    const reseal = $('#reseal');
     const bgm = $('#bgm');
+    const albumBgm = $('#album-bgm');
     const musicToggle = $('#music-toggle');
     bgm.volume = 0.58;
+    albumBgm.volume = 0.58;
+    let activeAudio = bgm;
+    let resumeAfterGallery = null;
     let opening = false;
+    let galleryOpen = false;
+    let galleryFrame = 0;
+    let galleryIndex = -1;
+    let lastMusicSlot = 0;
+    let manualHoldSlots = 0;
+
+    const gallerySlides = PHOTO_ITEMS.map((src, index) => {{
+      const image = document.createElement('img');
+      image.className = 'gallery-slide';
+      image.src = src;
+      image.dataset.src = src;
+      image.alt = `相册照片 ${{index + 1}}`;
+      image.decoding = 'async';
+      $('#gallery-stage').appendChild(image);
+      return image;
+    }});
 
     function syncMusicButton() {{
-      musicToggle.textContent = bgm.paused ? '♪' : 'Ⅱ';
-      musicToggle.setAttribute('aria-label', bgm.paused ? '播放背景音乐' : '暂停背景音乐');
-      if (!bgm.paused) musicToggle.classList.remove('needs-tap');
+      musicToggle.textContent = activeAudio.paused ? '♪' : 'Ⅱ';
+      musicToggle.setAttribute('aria-label', activeAudio.paused ? '播放背景音乐' : '暂停背景音乐');
+      if (!activeAudio.paused) musicToggle.classList.remove('needs-tap');
     }}
 
-    async function startMusic() {{
+    async function startMusic(audio = activeAudio) {{
+      if (activeAudio !== audio) activeAudio.pause();
+      activeAudio = audio;
       musicToggle.hidden = false;
       try {{
-        await bgm.play();
+        await activeAudio.play();
       }} catch (_) {{
         musicToggle.classList.add('needs-tap');
       }}
@@ -324,15 +480,81 @@ def render_page(payload: dict[str, object]) -> str:
     }}
 
     musicToggle.addEventListener('click', async () => {{
-      if (bgm.paused) {{
+      if (activeAudio.paused) {{
         await startMusic();
       }} else {{
-        bgm.pause();
+        activeAudio.pause();
         syncMusicButton();
       }}
     }});
     bgm.addEventListener('play', syncMusicButton);
     bgm.addEventListener('pause', syncMusicButton);
+    albumBgm.addEventListener('play', syncMusicButton);
+    albumBgm.addEventListener('pause', syncMusicButton);
+
+    function showGallerySlide(index) {{
+      if (!gallerySlides.length || index === galleryIndex) return;
+      gallerySlides.forEach((slide, slideIndex) => slide.classList.toggle('is-active', slideIndex === index));
+      galleryIndex = index;
+      $('#gallery-count').textContent = `${{index + 1}} / ${{gallerySlides.length}}`;
+    }}
+
+    function manualGalleryStep(direction) {{
+      if (!galleryOpen || !gallerySlides.length) return;
+      const next = (galleryIndex + direction + gallerySlides.length) % gallerySlides.length;
+      showGallerySlide(next);
+      manualHoldSlots = 2;
+      lastMusicSlot = Math.floor((albumBgm.currentTime + .035) / SLIDE_SECONDS);
+    }}
+
+    function syncGalleryToMusic() {{
+      if (!galleryOpen) return;
+      if (!albumBgm.paused && gallerySlides.length) {{
+        const musicSlot = Math.floor((albumBgm.currentTime + .035) / SLIDE_SECONDS);
+        if (musicSlot !== lastMusicSlot) {{
+          lastMusicSlot = musicSlot;
+          if (manualHoldSlots > 0) manualHoldSlots -= 1;
+          if (manualHoldSlots === 0) showGallerySlide((galleryIndex + 1) % gallerySlides.length);
+        }}
+      }}
+      galleryFrame = requestAnimationFrame(syncGalleryToMusic);
+    }}
+
+    async function openGallery() {{
+      if (galleryOpen || !gallerySlides.length) return;
+      galleryOpen = true;
+      resumeAfterGallery = !bgm.paused ? bgm : null;
+      $('#album-book').classList.add('is-opening');
+      albumBgm.currentTime = 0;
+      showGallerySlide(0);
+      lastMusicSlot = 0;
+      manualHoldSlots = 0;
+      startMusic(albumBgm);
+      setTimeout(() => {{
+        $('#gallery').classList.add('is-open');
+        document.body.classList.add('gallery-open');
+        $('#gallery-close').focus();
+      }}, 620);
+      cancelAnimationFrame(galleryFrame);
+      galleryFrame = requestAnimationFrame(syncGalleryToMusic);
+    }}
+
+    function closeGallery() {{
+      if (!galleryOpen) return;
+      galleryOpen = false;
+      cancelAnimationFrame(galleryFrame);
+      albumBgm.pause();
+      $('#gallery').classList.remove('is-open');
+      document.body.classList.remove('gallery-open');
+      $('#album-book').classList.remove('is-opening');
+      if (resumeAfterGallery) {{
+        startMusic(resumeAfterGallery);
+      }} else {{
+        activeAudio = bgm;
+        syncMusicButton();
+      }}
+      setTimeout(() => $('#album-seal').focus(), 560);
+    }}
 
     const fromBase64 = (value) => Uint8Array.from(atob(value), char => char.charCodeAt(0));
 
@@ -375,7 +597,7 @@ def render_page(payload: dict[str, object]) -> str:
         passwordInput.select();
       }} finally {{
         unlockButton.disabled = false;
-        unlockButton.textContent = '打开来信';
+        unlockButton.textContent = '打开';
       }}
     }});
 
@@ -390,11 +612,45 @@ def render_page(payload: dict[str, object]) -> str:
     seal.addEventListener('click', () => {{
       if (opening) return;
       opening = true;
-      startMusic();
+      startMusic(bgm);
       scene.classList.add('is-opening');
       seal.setAttribute('aria-expanded', 'true');
       $('#hint').setAttribute('aria-hidden', 'true');
-      setTimeout(() => $('#paper').focus({{ preventScroll: true }}), 1700);
+      setTimeout(() => {{
+        const sceneTop = scene.getBoundingClientRect().top + window.scrollY;
+        const paperBottom = $('#paper').getBoundingClientRect().bottom + window.scrollY;
+        scene.style.minHeight = `${{Math.ceil(paperBottom - sceneTop + 80)}}px`;
+        $('#paper').focus({{ preventScroll: true }});
+        reseal.hidden = false;
+      }}, 1700);
+    }});
+
+    reseal.addEventListener('click', () => {{
+      if (!opening || scene.classList.contains('is-closing')) return;
+      reseal.hidden = true;
+      scene.classList.add('is-closing');
+      scene.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+      bgm.pause();
+      bgm.currentTime = 0;
+      if (activeAudio === bgm) musicToggle.hidden = true;
+      setTimeout(() => {{
+        scene.classList.remove('is-opening', 'is-closing');
+        scene.style.minHeight = '';
+        opening = false;
+        seal.setAttribute('aria-expanded', 'false');
+        $('#hint').setAttribute('aria-hidden', 'false');
+        seal.focus();
+      }}, 1350);
+    }});
+
+    $('#album-seal').addEventListener('click', openGallery);
+    $('#gallery-close').addEventListener('click', closeGallery);
+    $('#gallery-prev').addEventListener('click', () => manualGalleryStep(-1));
+    $('#gallery-next').addEventListener('click', () => manualGalleryStep(1));
+    document.addEventListener('keydown', (event) => {{
+      if (event.key === 'Escape' && galleryOpen) closeGallery();
+      if (event.key === 'ArrowLeft' && galleryOpen) {{ event.preventDefault(); manualGalleryStep(-1); }}
+      if (event.key === 'ArrowRight' && galleryOpen) {{ event.preventDefault(); manualGalleryStep(1); }}
     }});
 
     window.addEventListener('pageshow', () => {{
@@ -433,10 +689,16 @@ def main() -> None:
     plaintext = SOURCE.read_text(encoding="utf-8").replace("\r\n", "\n")
     if not plaintext.strip():
         raise SystemExit("信件内容为空。")
+    album_photos = list_album_photos()
+    if not album_photos:
+        raise SystemExit("找不到 Photos/web/*.webp，请先运行 python3 prepare_photos.py。")
 
     password = read_password(args.password)
-    OUTPUT.write_text(render_page(encrypt_letter(plaintext, password)), encoding="utf-8")
+    OUTPUT.write_text(
+        render_page(encrypt_letter(plaintext, password), album_photos), encoding="utf-8"
+    )
     print(f"已生成：{OUTPUT}")
+    print(f"相册已加载 {len(album_photos)} 张照片。")
     print("正文已加密，请妥善保存密码。")
 
 
