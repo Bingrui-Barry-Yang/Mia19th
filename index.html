@@ -59,7 +59,11 @@
     .auth-mark svg { width: 2.2rem; height: 2.2rem; }
     .auth h1 { margin: 0; font-size: clamp(1.2rem, 5vw, 1.65rem); font-weight: 500; line-height: 1.4; letter-spacing: .04em; }
     .auth p { margin: .7rem 0 1.45rem; color: var(--muted); font-size: .93rem; line-height: 1.65; }
-    .password-wrap { position: relative; margin-top: 1.45rem; }
+    .headphone-note {
+      margin: 1.15rem 0 .65rem !important; color: var(--muted) !important;
+      font-size: .78rem !important; line-height: 1.4 !important; letter-spacing: .09em;
+    }
+    .password-wrap { position: relative; }
     .password-wrap input {
       width: 100%; height: 3.25rem; padding: 0 3.1rem 0 1rem; color: var(--ink);
       border: 1px solid #d8c9c0; border-radius: .85rem; outline: none; background: rgba(255,255,255,.78);
@@ -152,6 +156,15 @@
       margin: 0; color: var(--muted); font-size: .88rem; letter-spacing: .12em; white-space: nowrap;
       animation: breathe 2.5s ease-in-out infinite;
     }
+    .music-toggle {
+      position: fixed; z-index: 20; top: max(1rem, env(safe-area-inset-top)); right: max(1rem, env(safe-area-inset-right));
+      width: 2.8rem; height: 2.8rem; border: 1px solid rgba(82,121,154,.26); border-radius: 50%;
+      color: #f8fbfd; background: rgba(82,121,154,.88); cursor: pointer; backdrop-filter: blur(8px);
+      box-shadow: 0 .45rem 1.2rem rgba(38,55,68,.18); transition: transform .2s, opacity .2s;
+    }
+    .music-toggle:hover { transform: translateY(-1px) scale(1.03); }
+    .music-toggle.needs-tap { animation: music-pulse 1.5s ease-in-out infinite; }
+    @keyframes music-pulse { 50% { transform: scale(1.1); box-shadow: 0 0 0 .45rem rgba(82,121,154,.12); } }
     @keyframes breathe { 50% { opacity: .45; transform: translate(-50%, .16rem); } }
 
     .scene.is-opening { overflow: visible; align-items: start; padding-top: clamp(2rem, 8vh, 5rem); }
@@ -194,6 +207,7 @@
         </svg>
       </div>
       <h1 id="auth-title">Happy 19th Birthday to Mia</h1>
+      <p class="headphone-note">戴上耳机食用更佳</p>
       <div class="password-wrap">
         <label for="password" hidden>密码</label>
         <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required autofocus>
@@ -223,9 +237,12 @@
     </section>
   </main>
 
+  <audio id="bgm" src="keshi-LIMBO.mp3" preload="auto" loop></audio>
+  <button class="music-toggle" id="music-toggle" type="button" aria-label="播放背景音乐" hidden>♪</button>
+
   <script>
     'use strict';
-    const ENCRYPTED_LETTER = {"salt":"biN+PtDeZ5wN049G1NSepQ==","iv":"hF5idIy0aIGkdZQs","ciphertext":"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","iterations":310000};
+    const ENCRYPTED_LETTER = {"salt":"h0myZs1iGUPUIjRBhrlLVA==","iv":"+9X5i3Ckb3vXU10h","ciphertext":"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","iterations":310000};
     const $ = (selector) => document.querySelector(selector);
     const auth = $('#auth');
     const authForm = $('#auth-form');
@@ -235,7 +252,37 @@
     const experience = $('#experience');
     const scene = $('#scene');
     const seal = $('#seal');
+    const bgm = $('#bgm');
+    const musicToggle = $('#music-toggle');
+    bgm.volume = 0.58;
     let opening = false;
+
+    function syncMusicButton() {
+      musicToggle.textContent = bgm.paused ? '♪' : 'Ⅱ';
+      musicToggle.setAttribute('aria-label', bgm.paused ? '播放背景音乐' : '暂停背景音乐');
+      if (!bgm.paused) musicToggle.classList.remove('needs-tap');
+    }
+
+    async function startMusic() {
+      musicToggle.hidden = false;
+      try {
+        await bgm.play();
+      } catch (_) {
+        musicToggle.classList.add('needs-tap');
+      }
+      syncMusicButton();
+    }
+
+    musicToggle.addEventListener('click', async () => {
+      if (bgm.paused) {
+        await startMusic();
+      } else {
+        bgm.pause();
+        syncMusicButton();
+      }
+    });
+    bgm.addEventListener('play', syncMusicButton);
+    bgm.addEventListener('pause', syncMusicButton);
 
     const fromBase64 = (value) => Uint8Array.from(atob(value), char => char.charCodeAt(0));
 
@@ -293,6 +340,7 @@
     seal.addEventListener('click', () => {
       if (opening) return;
       opening = true;
+      startMusic();
       scene.classList.add('is-opening');
       seal.setAttribute('aria-expanded', 'true');
       $('#hint').setAttribute('aria-hidden', 'true');

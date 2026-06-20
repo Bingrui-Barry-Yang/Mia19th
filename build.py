@@ -109,7 +109,11 @@ def render_page(payload: dict[str, object]) -> str:
     .auth-mark svg {{ width: 2.2rem; height: 2.2rem; }}
     .auth h1 {{ margin: 0; font-size: clamp(1.2rem, 5vw, 1.65rem); font-weight: 500; line-height: 1.4; letter-spacing: .04em; }}
     .auth p {{ margin: .7rem 0 1.45rem; color: var(--muted); font-size: .93rem; line-height: 1.65; }}
-    .password-wrap {{ position: relative; margin-top: 1.45rem; }}
+    .headphone-note {{
+      margin: 1.15rem 0 .65rem !important; color: var(--muted) !important;
+      font-size: .78rem !important; line-height: 1.4 !important; letter-spacing: .09em;
+    }}
+    .password-wrap {{ position: relative; }}
     .password-wrap input {{
       width: 100%; height: 3.25rem; padding: 0 3.1rem 0 1rem; color: var(--ink);
       border: 1px solid #d8c9c0; border-radius: .85rem; outline: none; background: rgba(255,255,255,.78);
@@ -202,6 +206,15 @@ def render_page(payload: dict[str, object]) -> str:
       margin: 0; color: var(--muted); font-size: .88rem; letter-spacing: .12em; white-space: nowrap;
       animation: breathe 2.5s ease-in-out infinite;
     }}
+    .music-toggle {{
+      position: fixed; z-index: 20; top: max(1rem, env(safe-area-inset-top)); right: max(1rem, env(safe-area-inset-right));
+      width: 2.8rem; height: 2.8rem; border: 1px solid rgba(82,121,154,.26); border-radius: 50%;
+      color: #f8fbfd; background: rgba(82,121,154,.88); cursor: pointer; backdrop-filter: blur(8px);
+      box-shadow: 0 .45rem 1.2rem rgba(38,55,68,.18); transition: transform .2s, opacity .2s;
+    }}
+    .music-toggle:hover {{ transform: translateY(-1px) scale(1.03); }}
+    .music-toggle.needs-tap {{ animation: music-pulse 1.5s ease-in-out infinite; }}
+    @keyframes music-pulse {{ 50% {{ transform: scale(1.1); box-shadow: 0 0 0 .45rem rgba(82,121,154,.12); }} }}
     @keyframes breathe {{ 50% {{ opacity: .45; transform: translate(-50%, .16rem); }} }}
 
     .scene.is-opening {{ overflow: visible; align-items: start; padding-top: clamp(2rem, 8vh, 5rem); }}
@@ -244,6 +257,7 @@ def render_page(payload: dict[str, object]) -> str:
         </svg>
       </div>
       <h1 id="auth-title">Happy 19th Birthday to Mia</h1>
+      <p class="headphone-note">戴上耳机食用更佳</p>
       <div class="password-wrap">
         <label for="password" hidden>密码</label>
         <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" required autofocus>
@@ -273,6 +287,9 @@ def render_page(payload: dict[str, object]) -> str:
     </section>
   </main>
 
+  <audio id="bgm" src="keshi-LIMBO.mp3" preload="auto" loop></audio>
+  <button class="music-toggle" id="music-toggle" type="button" aria-label="播放背景音乐" hidden>♪</button>
+
   <script>
     'use strict';
     const ENCRYPTED_LETTER = {payload_json};
@@ -285,7 +302,37 @@ def render_page(payload: dict[str, object]) -> str:
     const experience = $('#experience');
     const scene = $('#scene');
     const seal = $('#seal');
+    const bgm = $('#bgm');
+    const musicToggle = $('#music-toggle');
+    bgm.volume = 0.58;
     let opening = false;
+
+    function syncMusicButton() {{
+      musicToggle.textContent = bgm.paused ? '♪' : 'Ⅱ';
+      musicToggle.setAttribute('aria-label', bgm.paused ? '播放背景音乐' : '暂停背景音乐');
+      if (!bgm.paused) musicToggle.classList.remove('needs-tap');
+    }}
+
+    async function startMusic() {{
+      musicToggle.hidden = false;
+      try {{
+        await bgm.play();
+      }} catch (_) {{
+        musicToggle.classList.add('needs-tap');
+      }}
+      syncMusicButton();
+    }}
+
+    musicToggle.addEventListener('click', async () => {{
+      if (bgm.paused) {{
+        await startMusic();
+      }} else {{
+        bgm.pause();
+        syncMusicButton();
+      }}
+    }});
+    bgm.addEventListener('play', syncMusicButton);
+    bgm.addEventListener('pause', syncMusicButton);
 
     const fromBase64 = (value) => Uint8Array.from(atob(value), char => char.charCodeAt(0));
 
@@ -343,6 +390,7 @@ def render_page(payload: dict[str, object]) -> str:
     seal.addEventListener('click', () => {{
       if (opening) return;
       opening = true;
+      startMusic();
       scene.classList.add('is-opening');
       seal.setAttribute('aria-expanded', 'true');
       $('#hint').setAttribute('aria-hidden', 'true');
