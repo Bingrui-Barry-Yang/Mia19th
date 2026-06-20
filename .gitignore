@@ -1,0 +1,13 @@
+# 信件明文与原始文档
+咪呀22.txt
+咪呀22.docx
+
+# Office 临时文件
+.~*
+~$*
+
+# macOS 与 Python 缓存
+.DS_Store
+__pycache__/
+*.py[cod]
+
